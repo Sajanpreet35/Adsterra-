@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Blind Assist Prototype</title>
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  text-align: center;
+  background: #111;
+  color: white;
+}
+video, canvas {
+  width: 90%;
+  border-radius: 10px;
+  margin-top: 10px;
+}
+button {
+  padding: 10px 20px;
+  margin: 10px;
+  font-size: 18px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+}
+.start-btn { background: #28a745; color: white; }
+.ocr-btn { background: #007bff; color: white; }
+</style>
+
+</head>
+<body>
+
+<h2>Blind Assist – Web Prototype</h2>
+
+<video id="camera" autoplay playsinline></video>
+<canvas id="canvas"></canvas>
+
+<br />
+<button class="start-btn" onclick="startObjectDetection()">Start Object Detection</button>
+<button class="ocr-btn" onclick="runOCR()">Read Text (OCR)</button>
+
+<p id="status">Status: Idle</p>
+
+<!-- TensorFlow.js -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.9.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+
+<!-- Tesseract OCR -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/tesseract.min.js"></script>
+
+<script>
+let video = document.getElementById("camera");
+let canvas = document.getElementById("canvas");
+let ctx = canvas.getContext("2d");
+let model;
+
+// Start camera
+async function startCamera() {
+  try {
+    let stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    video.srcObject = stream;
+  } catch (error) {
+    alert("Camera access denied!");
+  }
+}
+startCamera();
+
+// Speak text
+function speak(text) {
+  let msg = new SpeechSynthesisUtterance(text);
+  msg.rate = 1;
+  speechSynthesis.speak(msg);
+}
+
+// Object Detection
+async function startObjectDetection() {
+  document.getElementById("status").innerText = "Status: Loading model...";
+  speak("Starting object detection");
+
+  model = await cocoSsd.load();
+  document.getElementById("status").innerText = "Status: Detecting";
+
+  detect();
+}
+
+async function detect() {
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+
+  const predictions = await model.detect(video);
+
+  ctx.drawImage(video, 0, 0);
+
+  predictions.forEach(pred => {
+    ctx.strokeStyle = "yellow";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(pred.bbox[0], pred.bbox[1], pred.bbox[2], pred.bbox[3]);
+
+    ctx.fillStyle = "yellow";
+    ctx.font = "20px Arial";
+    ctx.fillText(pred.class, pred.bbox[0], pred.bbox[1] - 5);
+
+    speak(pred.class + " detected");
+  });
+
+  requestAnimationFrame(detect);
+}
+
+// OCR (Read Text)
+async function runOCR() {
+  document.getElementById("status").innerText = "Status: Reading text...";
+  speak("Reading text");
+
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  ctx.drawImage(video, 0, 0);
+
+  const result = await Tesseract.recognize(canvas, "eng");
+  let text = result.data.text.trim();
+
+  if (text.length > 0) {
+    speak("Text found: " + text);
+    document.getElementById("status").innerText = "Text: " + text;
+  } else {
+    speak("No readable text found");
+    document.getElementById("status").innerText = "No readable text";
+  }
+}
+</script>
+
+</body>
+</html>
